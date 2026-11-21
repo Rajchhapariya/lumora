@@ -166,3 +166,7 @@ on the open-source Scrolless project, which is also GPL-3.0; see `NOTICE` for th
 third-party licences.
 
 Copyright (C) 2026 Rajchhapariya
+
+## Building from source
+
+The Gradle wrapper jar is not stored in the repository. After cloning, run `sh scripts/fetch-wrapper.sh` once. It downloads the official jar and verifies its checksum. Then build with `./gradlew assembleRelease`.
