@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141B2B"/>
+      <stop offset="1" stop-color="#0B0E14"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F2D388"/>
+      <stop offset="1" stop-color="#C9A24D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFF1CC" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFF1CC" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- ring with a gap -->
+  <path d="M355.2 199.1 A113.8 113.8 0 1 1 295.6 149.0" fill="none" stroke="url(#gold)" stroke-width="28" stroke-linecap="round"/>
+  <!-- glowing dot in the gap -->
+  <circle cx="329.2" cy="169.0" r="46" fill="url(#glow)"/>
+  <circle cx="329.2" cy="169.0" r="20.8" fill="#FFF1CC"/>
+</svg>

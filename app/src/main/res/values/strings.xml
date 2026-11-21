@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (C) 2026 Rajchhapariya
+  ~ Copyright (C) 2026 Scrolless
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<resources>
+    <string name="app_name">Lumora</string>
+    <string name="accessibility_service_description">This service detects when Reels, Shorts and Facebook Reels are opened so that Lumora can block them if configured.</string>
+    <string name="timer_default_value" translatable="false">00:00</string>
+    <string name="keepalive_channel_name">Lumora protection</string>
+    <string name="keepalive_title">Lumora is active</string>
+    <string name="keepalive_text">Blocking Reels and Shorts</string>
+    <string name="keepalive_off_title">Lumora is OFF</string>
+    <string name="keepalive_off_text">Reels and Shorts are not blocked. Tap to switch it on.</string>
+    <string name="alert_channel_name">Blocking alerts</string>
+    <string name="alert_title">Blocking is OFF</string>
+    <string name="alert_text">Tap to turn Lumora back on in Accessibility.</string>
+    <string name="backup_saved">Backup saved</string>
+    <string name="backup_restored">Backup restored</string>
+    <string name="backup_failed">Could not use that backup file</string>
+</resources>

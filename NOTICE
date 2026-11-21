@@ -1,0 +1,28 @@
+Lumora
+Copyright (C) 2026 Rajchhapariya
+
+Lumora is free software, licensed under the GNU General Public License v3.0 (see LICENSE).
+
+BASED ON
+--------
+Lumora is a modified version of the open-source project "Scrolless":
+  Scrolless - Copyright (C) 2026 Scrolless authors (Anish, "Xeven777")
+  https://github.com/Xeven777/Scrolless
+  Licensed under the GNU General Public License v3.0.
+
+Scrolless was itself inspired by:
+  https://github.com/duartebarbosadev/scrolless
+
+The original copyright notices are kept in the headers of the source files, as the GPL
+requires. Changes made in Lumora include: a new name, logo and visual design; the
+accessibility-off alert and keep-alive service; blocking schedule; strict pause; stopped-today
+counter; settings backup and restore; removal of all network access.
+
+THIRD-PARTY COMPONENTS
+----------------------
+- Google Sans Flex font, Copyright 2015 Google LLC, SIL Open Font License 1.1.
+  "Google Sans" is a trademark of Google. See ASSETS_LICENSE.
+- AndroidX, Jetpack Compose, Material components, Kotlin, kotlinx libraries, Hilt/Dagger,
+  Room, Timber and others: Apache License 2.0.
+- Sheets Compose Dialogs (Marcel Kuhn / maxkeppeler): Apache License 2.0.
+- Other bundled assets: Apache License 2.0, as stated in ASSETS_LICENSE.
