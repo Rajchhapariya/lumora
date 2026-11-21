@@ -68,10 +68,23 @@ object DataDiModule {
                 object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
-                        // Insert default user settings row
+                        seedDefaultSettings(db)
+                    }
+
+                    // Room rebuilds the tables on a reset without calling onCreate, which would
+                    // leave the app with no settings row and crash on start.
+                    override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                        super.onDestructiveMigration(db)
+                        seedDefaultSettings(db)
+                    }
+                },
+            ).build()
+
+    /** Inserts the single default user settings row. Safe to call more than once. */
+    private fun seedDefaultSettings(db: SupportSQLiteDatabase) {
                         db.execSQL(
                             """
-                        INSERT INTO user_settings (id, active_block_option, daily_limit,
+                        INSERT OR IGNORE INTO user_settings (id, active_block_option, daily_limit,
                                                    interval_allowance, interval_length,
                                                    interval_window_start_at, interval_usage,
                                                    timer_overlay_enabled,
@@ -87,8 +100,6 @@ object DataDiModule {
                         """,
                         )
                     }
-                },
-            ).build()
 
     @Provides
     @Singleton
