@@ -52,6 +52,11 @@ class ExtrasPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_STRICT_PAUSE, false)
         set(value) = prefs.edit().putBoolean(KEY_STRICT_PAUSE, value).apply()
 
+    /** When true, Lumora switches its accessibility service on only while a supported app is in front. */
+    var onDemandMode: Boolean
+        get() = prefs.getBoolean(KEY_ON_DEMAND, false)
+        set(value) = prefs.edit().putBoolean(KEY_ON_DEMAND, value).apply()
+
     /** True once the accessibility service has connected at least once. */
     var everConnected: Boolean
         get() = prefs.getBoolean(KEY_EVER_CONNECTED, false)
@@ -112,6 +117,7 @@ class ExtrasPrefs(context: Context) {
         const val KEY_SCHEDULE_START = "schedule_start_minute"
         const val KEY_SCHEDULE_END = "schedule_end_minute"
         const val KEY_STRICT_PAUSE = "strict_pause"
+        const val KEY_ON_DEMAND = "on_demand_mode"
         private const val KEY_EVER_CONNECTED = "ever_connected"
         private const val KEY_ATTEMPTS_DATE = "attempts_date"
         private const val KEY_ATTEMPTS_COUNT = "attempts_count"

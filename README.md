@@ -40,13 +40,25 @@ cannot send anything anywhere. There is no account, no analytics and no ads.
 | **Stopped today** | A line on the home screen counts how many times Lumora stopped you today. |
 | **Usage tracking** | A timeline of each viewing session, plus weekly, monthly and yearly averages. |
 | **Blocking-is-off alert** | A notification appears the moment the accessibility service is switched off, and goes away when it is back on. |
+| **On-demand mode** | Optional. Switches the accessibility service on only while a supported app is open, and off everywhere else. Payment apps then do not see it, and the phone does no scanning for other apps. Needs a one-time setup (see below). |
 | **Backup and restore** | Saves your settings and the last 90 days of usage to a file you choose, and loads it back. |
 | **Look** | Dark, light or system theme, and an optional wallpaper-colour (Material You) palette. |
 
 ### Supported apps
 
-Instagram (Reels, Stories, chat Reels), YouTube Shorts (including YouTube Kids and ReVanced),
-Facebook and Facebook Lite Reels, and Snapchat Spotlight and Stories.
+Lumora blocks only the short-form video feeds below. Everything else in these apps, and every other
+app, is left alone.
+
+| App | What is blocked | Notes |
+|---|---|---|
+| **Instagram** | Reels | Stories too, if **Include Stories** is on. A Reel sent to you in a chat can be allowed with **Videos sent in DMs**. |
+| **YouTube** | Shorts | Also works in YouTube Kids and the ReVanced build of YouTube. Regular videos are never blocked. |
+| **Facebook** | Reels | Stories too, if **Include Stories** is on. |
+| **Facebook Lite** | Videos | The Lite app shows videos in one feed, so it blocks that video view. |
+| **Snapchat** | Spotlight | Stories too, if **Include Stories** is on. |
+
+Other apps and other kinds of content are not supported. Supporting a new app means adding the
+screen names that identify its short-video feed.
 
 ## Using it
 
@@ -72,7 +84,36 @@ Accessibility is the only Android feature that lets an app see which screen is o
 it. Lumora reads only the names and positions of on-screen elements it needs to recognise a Reel
 or a Short, and stores nothing about what you see. Because the permission is powerful, the source
 code is published so it can be checked. Payment and banking apps may warn about any accessibility
-service, so switch Lumora off while you use them if they complain.
+service, so switch Lumora off while you use them if they complain, or use On-demand mode below.
+
+### On-demand mode (optional)
+
+Payment apps refuse to run when any accessibility service that came from outside the Play Store is
+switched on. On-demand mode avoids this: Lumora's service is on only while a supported app is in
+front, and off the rest of the time. It switches on within about a second of opening the app, and
+off about a second after you leave it.
+
+It needs two permissions that Android only lets you grant from a computer with USB debugging:
+
+1. On the phone, turn on **Developer options** and **USB debugging**. On Realme and OPPO phones
+   also turn on **Disable permission monitoring**, which is near the bottom of Developer options.
+2. Connect the phone to the computer and run these two commands:
+
+```
+adb shell pm grant io.github.rajchhapariya.lumora android.permission.WRITE_SECURE_SETTINGS
+adb shell appops set io.github.rajchhapariya.lumora GET_USAGE_STATS allow
+```
+
+3. Open **Lumora > Settings > On-demand mode** and turn on **Only run when needed**.
+
+The permissions stay after you turn USB debugging and Developer options back off, and you should do
+that once you are done. The first permission lets Lumora switch only its own accessibility service
+on and off. The second lets it see which app is in front without the service. Neither gives it any
+internet access. Some payment apps also refuse to run while Developer options is on, so turn it off
+before paying.
+
+Limits: a Reel can show for a moment before the service connects, and a payment app opened
+straight from Instagram may check before Lumora has switched off.
 
 ## How it works (system design)
 
@@ -135,7 +176,7 @@ sequenceDiagram
 | **Screen scanner** | Works out which supported app is in front and whether its Reel, Short or Story screen is showing, using the app's internal screen names and layout. |
 | **Blocking manager** | One handler per mode (Block All, Daily Limit, Time Interval, none). It answers "block now?" from your usage, your limits, any pause and the schedule. |
 | **Sessions and usage** | Each stretch of viewing is saved as a session. Daily and interval totals, the timeline and the averages are built from them. |
-| **Watcher service** | A small foreground service that asks Android to keep Lumora running on phones that freeze idle apps. It also watches the accessibility setting and raises the "blocking is off" alert, and it restarts after a reboot. |
+| **Watcher service** | A small foreground service that asks Android to keep Lumora running on phones that freeze idle apps. It also watches the accessibility setting and raises the "blocking is off" alert, it restarts after a reboot, and in On-demand mode it watches which app is in front and switches the accessibility service on and off. |
 | **Storage** | A local Room database for settings and sessions, and a small preferences file for the schedule, strict mode, stopped-today counter and setup flag. Nothing is synced anywhere. |
 | **Backup** | Writes and reads one JSON file through Android's file picker. |
 

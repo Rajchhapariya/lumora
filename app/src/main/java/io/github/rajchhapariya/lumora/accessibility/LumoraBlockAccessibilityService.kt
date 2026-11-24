@@ -136,6 +136,9 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
 
     private val powerManager by lazy { getSystemService(POWER_SERVICE) as PowerManager }
 
+    /** Every package Lumora can block in, used to ignore content updates from unrelated apps. */
+    private val supportedPackages: Set<String> by lazy { BlockableApp.entries.flatMap { it.getPackageIds() }.toSet() }
+
     /** Local-only extras: blocking schedule, "stopped today" counter and setup flag. */
     private val extrasPrefs by lazy { ExtrasPrefs(this) }
 
@@ -208,14 +211,15 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
         val elapsed = System.currentTimeMillis() - session.startedAtMillis
 
         if (isBlockingSuppressed) {
-            // While paused or suppressed, continue scheduling so usage and timer overlay stay current.
+            // While paused or suppressed, keep checking so blocking resumes soon after a pause ends.
+            // The timer overlay has its own ticker, so this does not need to run every second.
             Timber.v(
                 "Periodic check skipped: elapsed=%d ms, paused=%b, suppressed=%b",
                 elapsed,
                 isPauseActive(),
                 session.blockingSuppressed,
             )
-            mainHandler.postDelayed(videoCheckRunnable, 1000)
+            mainHandler.postDelayed(videoCheckRunnable, SUPPRESSED_CHECK_INTERVAL_MILLIS)
         } else {
             Timber.v("Periodic check running: elapsed=%d ms", elapsed)
             serviceScope.launch {
@@ -376,6 +380,14 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
             return
         }
 
+        // Content updates in other apps (animations, video, keyboards) say nothing about leaving a
+        // supported app, but each one would otherwise trigger a full scan of every window.
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+            event.packageName?.toString() !in supportedPackages
+        ) {
+            return
+        }
+
         // TYPE_WINDOW_STATE_CHANGED also triggers for dialogs, popups, and keyboards.
         // Only record components ending in "Activity" so transient UI does not overwrite the active screen.
         val className = event.className?.toString()
@@ -450,6 +462,15 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
         )
         stopPeriodicCheck()
         mainHandler.removeCallbacks(coveredContentCheck)
+        // Save a viewing session that is still open. serviceScope is cancelled below, and a save
+        // launched on it would be lost, so use a short-lived scope of its own.
+        val finished = contentSession?.finish(System.currentTimeMillis())
+        contentSession = null
+        if (currentForegroundBrainRotApp != null) sessionTracker.onAppClose()
+        currentForegroundBrainRotApp = null
+        if (finished != null) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { saveViewing(finished) }
+        }
         blockedContentOverlayManager.hide()
         timerOverlayManager.cleanup()
         serviceScope.cancel()
@@ -752,6 +773,9 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     private companion object {
         /** Default event debounce timeout in ms (matches android:notificationTimeout in accessibility_service_config.xml). */
         const val DEFAULT_NOTIFICATION_TIMEOUT_MS = 50L
+
+        /** How often to re-check while blocking is paused or suppressed. */
+        const val SUPPRESSED_CHECK_INTERVAL_MILLIS = 2_000L
 
         /** Minimum viewing duration required to record usage. Sub-second visits (like immediate blocks) are ignored. */
         const val MIN_TRACKED_DURATION_MILLIS = 1_000L

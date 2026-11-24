@@ -63,7 +63,9 @@ object DataDiModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LumoraDatabase =
         Room.databaseBuilder(context, LumoraDatabase::class.java, "data.db")
-            .fallbackToDestructiveMigration(true) // Not recommended but for now it shouldn't matter
+            // No fallback for upgrades: a version bump without a migration must fail loudly during
+            // testing instead of silently erasing the user's settings and usage history.
+            // Only a downgrade (installing an older build over a newer one) may reset the database.
             .fallbackToDestructiveMigrationOnDowngrade(true).addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {

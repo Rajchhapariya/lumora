@@ -71,6 +71,11 @@
     <string name="settings_strict_title">Make Pause harder</string>
     <string name="settings_strict_description">Pausing asks you to wait 20 seconds and confirm first.</string>
 
+    <string name="settings_section_ondemand">On-demand mode</string>
+    <string name="settings_ondemand_title">Only run when needed</string>
+    <string name="settings_ondemand_description">Lumora switches its accessibility service on only while Instagram, YouTube or another supported app is open, and off everywhere else, so payment apps do not see it.</string>
+    <string name="settings_ondemand_needs_setup">Needs a one-time setup from a computer over USB. See On-demand mode in the README.</string>
+
     <string name="settings_section_backup">Backup</string>
     <string name="settings_backup_export_title">Save backup</string>
     <string name="settings_backup_export_description">Save your settings and usage to a file on this phone.</string>

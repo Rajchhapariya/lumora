@@ -21,17 +21,29 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.database.ContentObserver
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import io.github.rajchhapariya.lumora.R
+import io.github.rajchhapariya.lumora.core.model.BlockableApp
+import io.github.rajchhapariya.lumora.core.prefs.DemandAction
+import io.github.rajchhapariya.lumora.core.prefs.DemandDecider
 import io.github.rajchhapariya.lumora.core.prefs.ExtrasPrefs
+import io.github.rajchhapariya.lumora.core.prefs.ForegroundTracker
+import io.github.rajchhapariya.lumora.core.prefs.OnDemandMode
 import io.github.rajchhapariya.lumora.ui.MainActivity
 import timber.log.Timber
 
@@ -53,6 +65,39 @@ class KeepAliveService : Service() {
         override fun onChange(selfChange: Boolean) = refreshAlert()
     }
 
+    // On-demand mode: look at the front app and switch the accessibility service to match.
+    private val extras by lazy { ExtrasPrefs(this) }
+    private val tracker = ForegroundTracker()
+    private val decider = DemandDecider()
+    private val supportedPackages = BlockableApp.entries.flatMap { it.getPackageIds() }.toSet()
+    private var lastEventTime = 0L
+    private var lastNotificationState: NotificationState? = null
+    private var wasOnDemand = false
+
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            pollForegroundApp()
+            handler.postDelayed(this, POLL_INTERVAL_MS)
+        }
+    }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = updateOnDemandWatcher()
+    }
+
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == ExtrasPrefs.KEY_ON_DEMAND) {
+            // Leaving the mode must not leave blocking switched off.
+            if (wasOnDemand && !OnDemandMode.isActive(this)) {
+                OnDemandMode.setServiceEnabled(this, serviceComponent(), true)
+            }
+            updateOnDemandWatcher()
+            refreshAlert()
+        }
+    }
+
+    private fun serviceComponent() = "$packageName/${LumoraBlockAccessibilityService::class.java.name}"
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -62,11 +107,59 @@ class KeepAliveService : Service() {
             false,
             observer,
         )
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        ContextCompat.registerReceiver(this, screenReceiver, screenFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        extras.register(prefsListener)
+        updateOnDemandWatcher()
     }
 
     override fun onDestroy() {
         contentResolver.unregisterContentObserver(observer)
+        extras.unregister(prefsListener)
+        handler.removeCallbacks(pollRunnable)
+        unregisterReceiver(screenReceiver)
         super.onDestroy()
+    }
+
+    /** Runs the front-app watcher only while on-demand mode is active and the screen is on. */
+    private fun updateOnDemandWatcher() {
+        handler.removeCallbacks(pollRunnable)
+        wasOnDemand = OnDemandMode.isActive(this)
+        if (!wasOnDemand || !getSystemService(PowerManager::class.java).isInteractive) return
+        // Replay the last few minutes so the current front app is known straight away.
+        tracker.reset()
+        decider.reset()
+        lastEventTime = System.currentTimeMillis() - LOOKBACK_MS
+        handler.post(pollRunnable)
+    }
+
+    private fun pollForegroundApp() {
+        val usage = getSystemService(UsageStatsManager::class.java) ?: return
+        try {
+            val events = usage.queryEvents(lastEventTime, System.currentTimeMillis())
+            val event = UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                lastEventTime = maxOf(lastEventTime, event.timeStamp + 1)
+                event.packageName?.let { tracker.onEvent(it, event.eventType) }
+            }
+        } catch (_: SecurityException) {
+            return
+        }
+        val component = serviceComponent()
+        when (
+            decider.next(
+                supportedInFront = tracker.packageName in supportedPackages,
+                serviceOn = OnDemandMode.isServiceEnabled(this, component),
+            )
+        ) {
+            DemandAction.Enable -> OnDemandMode.setServiceEnabled(this, component, true)
+            DemandAction.Disable -> OnDemandMode.setServiceEnabled(this, component, false)
+            DemandAction.None -> Unit
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -98,8 +191,17 @@ class KeepAliveService : Service() {
         )
     }
 
+    private enum class NotificationState { Active, OnDemand, Off }
+
+    private fun currentState(): NotificationState = when {
+        OnDemandMode.isActive(this) -> NotificationState.OnDemand
+        isAccessibilityEnabled(this) -> NotificationState.Active
+        else -> NotificationState.Off
+    }
+
     /** The permanent notification. Its text follows the real state, so it never claims "active" while off. */
-    private fun buildOngoingNotification(blockingOn: Boolean = isAccessibilityEnabled(this)): Notification {
+    private fun buildOngoingNotification(state: NotificationState = currentState()): Notification {
+        val blockingOn = state != NotificationState.Off
         val target = if (blockingOn) {
             Intent(this, MainActivity::class.java)
         } else {
@@ -113,8 +215,24 @@ class KeepAliveService : Service() {
         )
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
-            .setContentTitle(getString(if (blockingOn) R.string.keepalive_title else R.string.keepalive_off_title))
-            .setContentText(getString(if (blockingOn) R.string.keepalive_text else R.string.keepalive_off_text))
+            .setContentTitle(
+                getString(
+                    when (state) {
+                        NotificationState.Active -> R.string.keepalive_title
+                        NotificationState.OnDemand -> R.string.keepalive_ondemand_title
+                        NotificationState.Off -> R.string.keepalive_off_title
+                    },
+                ),
+            )
+            .setContentText(
+                getString(
+                    when (state) {
+                        NotificationState.Active -> R.string.keepalive_text
+                        NotificationState.OnDemand -> R.string.keepalive_ondemand_text
+                        NotificationState.Off -> R.string.keepalive_off_text
+                    },
+                ),
+            )
             .setContentIntent(openTarget)
             .setOngoing(true)
             .setShowWhen(false)
@@ -124,10 +242,14 @@ class KeepAliveService : Service() {
     /** Shows the "blocking is off" alert while the accessibility service is disabled. */
     private fun refreshAlert() {
         val manager = getSystemService(NotificationManager::class.java)
-        val blockingOn = isAccessibilityEnabled(this)
-        // Keep the permanent notification honest as well as the alert.
-        manager.notify(NOTIFICATION_ID, buildOngoingNotification(blockingOn))
-        if (blockingOn) {
+        val state = currentState()
+        // Keep the permanent notification honest as well as the alert. Skip it when nothing changed,
+        // because on-demand mode flips the accessibility setting often.
+        if (state != lastNotificationState) {
+            lastNotificationState = state
+            manager.notify(NOTIFICATION_ID, buildOngoingNotification(state))
+        }
+        if (state != NotificationState.Off) {
             manager.cancel(ALERT_ID)
             return
         }
@@ -153,6 +275,8 @@ class KeepAliveService : Service() {
         private const val ALERT_CHANNEL_ID = "lumora_alert"
         private const val NOTIFICATION_ID = 1001
         private const val ALERT_ID = 1002
+        private const val POLL_INTERVAL_MS = 600L
+        private const val LOOKBACK_MS = 10 * 60 * 1000L
 
         /** True if the Lumora accessibility service is switched on in system settings. */
         fun isAccessibilityEnabled(context: Context): Boolean {

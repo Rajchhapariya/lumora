@@ -23,6 +23,8 @@
     <string name="keepalive_channel_name">Lumora protection</string>
     <string name="keepalive_title">Lumora is active</string>
     <string name="keepalive_text">Blocking Reels and Shorts</string>
+    <string name="keepalive_ondemand_title">Lumora is on standby</string>
+    <string name="keepalive_ondemand_text">Switches on by itself when you open Instagram, YouTube or another supported app</string>
     <string name="keepalive_off_title">Lumora is OFF</string>
     <string name="keepalive_off_text">Reels and Shorts are not blocked. Tap to switch it on.</string>
     <string name="alert_channel_name">Blocking alerts</string>

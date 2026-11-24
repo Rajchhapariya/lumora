@@ -123,6 +123,20 @@ class BackupManager @Inject constructor(
     private suspend fun applyBackup(root: JSONObject) {
         require(root.optInt("version", -1) in 1..VERSION) { "Unsupported backup" }
 
+        // Read the usage list first. A damaged entry then fails the restore before anything is changed,
+        // instead of leaving the settings half applied.
+        val usageByDate = mutableMapOf<LocalDate, MutableList<SessionSegment>>()
+        root.optJSONArray("usage")?.let { usage ->
+            for (index in 0 until usage.length()) {
+                val item = usage.getJSONObject(index)
+                val app = BlockableApp.entries.firstOrNull { it.name == item.optString("app") } ?: continue
+                val start = LocalDateTime.parse(item.getString("start"))
+                val duration = item.getLong("durationMillis")
+                require(duration >= 0L) { "Invalid usage entry" }
+                usageByDate.getOrPut(start.toLocalDate()) { mutableListOf() } += SessionSegment(app, duration, start)
+            }
+        }
+
         root.optJSONObject("settings")?.let { settings ->
             if (settings.has("pauseDurationMillis")) userSettingsStore.setPauseDuration(settings.getLong("pauseDurationMillis"))
             if (settings.has("timerOverlay")) userSettingsStore.setTimerOverlayToggle(settings.getBoolean("timerOverlay"))
@@ -152,17 +166,7 @@ class BackupManager @Inject constructor(
             ExtrasPrefs(context).importValues(extras.keys().asSequence().associateWith { extras.get(it) })
         }
 
-        root.optJSONArray("usage")?.let { usage ->
-            val byDate = mutableMapOf<LocalDate, MutableList<SessionSegment>>()
-            for (index in 0 until usage.length()) {
-                val item = usage.getJSONObject(index)
-                val app = BlockableApp.entries.firstOrNull { it.name == item.optString("app") } ?: continue
-                val start = LocalDateTime.parse(item.getString("start"))
-                byDate.getOrPut(start.toLocalDate()) { mutableListOf() } +=
-                    SessionSegment(app, item.getLong("durationMillis"), start)
-            }
-            byDate.forEach { (date, list) -> sessionSegmentStore.replaceSessionSegmentsForDate(date, list) }
-        }
+        usageByDate.forEach { (date, list) -> sessionSegmentStore.replaceSessionSegmentsForDate(date, list) }
     }
 
     private companion object {

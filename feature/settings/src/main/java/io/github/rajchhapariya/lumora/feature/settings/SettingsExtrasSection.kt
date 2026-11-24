@@ -23,6 +23,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.provider.Settings
 import android.text.format.DateFormat
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.rajchhapariya.lumora.core.prefs.ExtrasPrefs
+import io.github.rajchhapariya.lumora.core.prefs.OnDemandMode
 import io.github.rajchhapariya.lumora.designsystem.component.SettingsActionRow
 import io.github.rajchhapariya.lumora.designsystem.component.SettingsDivider
 import io.github.rajchhapariya.lumora.designsystem.component.SettingsGroup
@@ -62,6 +64,7 @@ internal fun SettingsExtrasSections(actions: SettingsExtrasActions, modifier: Mo
     var startMinute by remember { mutableStateOf(prefs.scheduleStartMinute) }
     var endMinute by remember { mutableStateOf(prefs.scheduleEndMinute) }
     var strictPause by remember { mutableStateOf(prefs.strictPause) }
+    var onDemand by remember { mutableStateOf(prefs.onDemandMode) }
 
     // Re-read everything when the values change from elsewhere, such as after restoring a backup.
     DisposableEffect(prefs) {
@@ -70,6 +73,7 @@ internal fun SettingsExtrasSections(actions: SettingsExtrasActions, modifier: Mo
             startMinute = prefs.scheduleStartMinute
             endMinute = prefs.scheduleEndMinute
             strictPause = prefs.strictPause
+            onDemand = prefs.onDemandMode
         }
         prefs.register(listener)
         onDispose { prefs.unregister(listener) }
@@ -149,6 +153,25 @@ internal fun SettingsExtrasSections(actions: SettingsExtrasActions, modifier: Mo
                 onCheckedChange = {
                     strictPause = it
                     prefs.strictPause = it
+                },
+            )
+        }
+
+        SectionGap()
+        SettingsSectionLabel(stringResource(R.string.settings_section_ondemand))
+        LabelGap()
+        SettingsGroup {
+            SettingsSwitchRow(
+                title = stringResource(R.string.settings_ondemand_title),
+                description = stringResource(R.string.settings_ondemand_description),
+                checked = onDemand,
+                onCheckedChange = { wanted ->
+                    if (wanted && !OnDemandMode.hasPermissions(context)) {
+                        Toast.makeText(context, R.string.settings_ondemand_needs_setup, Toast.LENGTH_LONG).show()
+                    } else {
+                        onDemand = wanted
+                        prefs.onDemandMode = wanted
+                    }
                 },
             )
         }

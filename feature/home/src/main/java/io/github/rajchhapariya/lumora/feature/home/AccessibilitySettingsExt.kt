@@ -26,6 +26,9 @@ import android.provider.Settings
 internal fun Context.isAccessibilityServiceEnabled(service: Class<out AccessibilityService>?): Boolean {
     if (service == null) return false
 
+    // On-demand mode switches the service off on purpose, so that is not a problem to warn about.
+    if (io.github.rajchhapariya.lumora.core.prefs.OnDemandMode.isActive(this)) return true
+
     val expectedComponentName = "$packageName/${service.name}"
     val enabledServicesSetting = Settings.Secure.getString(
         contentResolver,
