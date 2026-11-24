@@ -211,3 +211,9 @@ Copyright (C) 2026 Rajchhapariya
 ## Building from source
 
 The Gradle wrapper jar is not stored in the repository. After cloning, run `sh scripts/fetch-wrapper.sh` once. It downloads the official jar and verifies its checksum. Then build with `./gradlew assembleRelease`.
+
+A build made this way is unsigned (`app-release-unsigned.apk`) and Android will not install it. To
+get an installable APK, either sign it yourself with `apksigner`, or add a `keystore.properties`
+file in the project folder with `storeFile`, `storePassword`, `keyAlias` and `keyPassword` for your
+own keystore, and the release build will be signed with it. Never commit that file or the keystore.
+An APK signed with a different key cannot be installed over the official release.

@@ -36,18 +36,13 @@ gen/
 proguard/
 proguard-project.txt
 
-# Signing keys (never commit these)
-*.jks
-*.keystore
-
 # Build / local files
 gradle/gradle-daemon-jvm.properties
 .worktrees/
-keystore.properties
+apk-backup/
 
-# Signing keys and local-only files (never publish these)
+# Signing keys and local-only files (never commit or publish these)
 keystore/
 keystore.properties
 *.jks
 *.keystore
-apk-backup/
