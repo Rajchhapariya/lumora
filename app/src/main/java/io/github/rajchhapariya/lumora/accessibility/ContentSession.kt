@@ -19,20 +19,15 @@ package io.github.rajchhapariya.lumora.accessibility
 
 import io.github.rajchhapariya.lumora.core.model.ContentBlockAction
 import io.github.rajchhapariya.lumora.core.model.ResolvedBlockableApp
-import io.github.rajchhapariya.lumora.ui.overlay.ContentCover
 
 /** Information about blocked content detected on screen. */
-internal data class DetectedBlockedContent(
-    val app: ResolvedBlockableApp,
-    val blockingSuppressed: Boolean,
-    val cover: ContentCover? = null,
-) {
-    /** The action required for this screen: cover its video when possible, otherwise use the app's normal action. */
+internal data class DetectedBlockedContent(val app: ResolvedBlockableApp, val blockingSuppressed: Boolean) {
+    /** What to do when the content must be blocked: the app's own action, such as Back. */
     val blockAction: ContentBlockAction
-        get() = if (cover != null) ContentBlockAction.CoverVideoRegion else app.getBlockAction()
+        get() = app.getBlockAction()
 
-    /** Layout changes keep the session; changing the app or blocking action starts a new one. */
-    fun canContinueWith(next: DetectedBlockedContent): Boolean = app == next.app && blockAction == next.blockAction
+    /** Screen updates keep the session; changing the app starts a new one. */
+    fun canContinueWith(next: DetectedBlockedContent): Boolean = app == next.app
 }
 
 /** Tracks a viewing session while the user is inside blocked content. */
@@ -42,22 +37,8 @@ internal class ContentSession(var content: DetectedBlockedContent, val startedAt
     /** Whether blocking is temporarily skipped for this screen while viewing time is still counted. */
     val blockingSuppressed: Boolean get() = content.blockingSuppressed
 
-    /** Whether a cover has stopped this session's viewing time but screen detection must continue. */
-    var isCovered: Boolean = false
-        private set
-
     /** Prevents more than one usage record from being produced for this visit. */
     private var viewingFinished: Boolean = false
-
-    /**
-     * Marks the video as covered and returns the viewing period that just ended.
-     * Later calls return `null` so the same viewing time cannot be saved twice.
-     */
-    fun cover(nowMillis: Long): FinishedViewing? {
-        if (viewingFinished) return null
-        isCovered = true
-        return finishOnce(nowMillis)
-    }
 
     /**
      * Ends this visit and returns its viewing period.
@@ -65,10 +46,6 @@ internal class ContentSession(var content: DetectedBlockedContent, val startedAt
      */
     fun finish(nowMillis: Long): FinishedViewing? {
         if (viewingFinished) return null
-        return finishOnce(nowMillis)
-    }
-
-    private fun finishOnce(nowMillis: Long): FinishedViewing {
         viewingFinished = true
         return FinishedViewing(app, startedAtMillis, maxOf(startedAtMillis, nowMillis))
     }

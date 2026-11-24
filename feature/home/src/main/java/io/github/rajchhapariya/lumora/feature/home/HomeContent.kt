@@ -81,8 +81,6 @@ internal fun HomeContent(
     onUsageAnalyticsDateSelected: (LocalDate) -> Unit = {},
     onUsageAnalyticsTodaySelected: () -> Unit = {},
     onAveragePeriodSelected: (UsageAveragePeriod) -> Unit = {},
-    forceLegacyOverlay: Boolean = false,
-    onForceLegacyOverlayChanged: (Boolean) -> Unit = {},
 ) {
     val pauseRemainingMillis = rememberPauseRemainingTime(uiState.pauseUntilMillis)
     val isPauseActive = pauseRemainingMillis > 0L
@@ -238,8 +236,6 @@ internal fun HomeContent(
                 onReset = {
                     onDebugUsageReset()
                 },
-                forceLegacyOverlay = forceLegacyOverlay,
-                onForceLegacyOverlayChanged = onForceLegacyOverlayChanged,
                 modifier = Modifier.fillMaxSize(),
             )
         }

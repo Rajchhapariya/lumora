@@ -92,7 +92,7 @@ data class DetectionNode(
 )
 
 /**
- * Describes how to block detected content: navigate away or cover its video region.
+ * Describes how to block detected content: navigate away from it.
  * Detection chooses the action; the service carries it out when the user's limit is reached.
  */
 sealed interface ContentBlockAction {
@@ -102,11 +102,6 @@ sealed interface ContentBlockAction {
      *  (example if the user is on Reels it will press back so that he moves into the main Instagram feed)
      */
     data class PerformGlobalAction(val action: Int) : ContentBlockAction
-
-    /**
-     * Hides only the detected video rectangle so the rest of the app remains usable.
-     */
-    data object CoverVideoRegion : ContentBlockAction
 }
 
 /**
@@ -116,20 +111,16 @@ sealed interface ContentBlockAction {
  * @property requiredViewIds All of these view IDs must be visible.
  * @property anyOfViewIds At least one of these view IDs must be visible (if non-empty).
  * @property forbiddenViewIds None of these view IDs may be visible.
- * @property replyLabelsBelowPlayer App-provided labels for a visible, enabled, non-editable reply button
- * directly below the detected player. Requires a content cover; combines with the ID rules above.
  */
 @Immutable
 data class DmExemptionRule(
     val requiredViewIds: Set<String> = emptySet(),
     val anyOfViewIds: Set<String> = emptySet(),
     val forbiddenViewIds: Set<String> = emptySet(),
-    val replyLabelsBelowPlayer: ReplyLabels? = null,
 )
 
 /**
  * Lists supported apps, their package variants, and their default detection and blocking action.
- * A screen-specific cover detector can override the default action for a detected video region.
  */
 @Immutable
 enum class BlockableApp(

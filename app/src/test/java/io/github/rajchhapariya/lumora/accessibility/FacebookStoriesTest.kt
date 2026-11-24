@@ -35,7 +35,7 @@ class FacebookStoriesTest {
     private var includeStories = false
     private val service = Robolectric.buildService(TestAccessibilityService::class.java).create().get()
     private var currentActivity: ComponentName? = null
-    private val scanner = ContentScanner(service, { false }, { false }, { includeStories }, { currentActivity })
+    private val scanner = ContentScanner(service, { false }, { includeStories }, { currentActivity })
     private val facebook = ResolvedBlockableApp(BlockableApp.FACEBOOK, "com.facebook.katana")
     private val storyActivity = "com.facebook.stories.viewer.activity.StoryViewerActivity"
 

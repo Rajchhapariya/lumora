@@ -19,37 +19,31 @@ package io.github.rajchhapariya.lumora.accessibility
 
 import io.github.rajchhapariya.lumora.core.model.BlockableApp
 import io.github.rajchhapariya.lumora.core.model.ResolvedBlockableApp
-import io.github.rajchhapariya.lumora.ui.overlay.ContentCover
-import io.github.rajchhapariya.lumora.ui.overlay.ContentCoverTarget
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContentSessionTest {
     private val app = ResolvedBlockableApp(BlockableApp.SNAPCHAT, "com.snapchat.android")
-    private val cover = ContentCover(ContentCoverTarget.Screen(ContentBounds(0, 0, 1080, 2160)), 1, 2)
-    private val content = DetectedBlockedContent(app, false, cover)
+    private val content = DetectedBlockedContent(app, false)
 
     @Test
-    fun `covering finishes viewing only once`() {
+    fun `finishing records the viewing time only once`() {
         val session = ContentSession(content, 1_000)
 
-        assertEquals(5_000L, session.cover(6_000)!!.durationMillis)
-        assertTrue(session.isCovered)
-        assertNull(session.cover(10_000))
-        assertNull(session.finish(60_000))
+        assertEquals(5_000L, session.finish(6_000)!!.durationMillis)
+        assertNull(session.finish(10_000))
     }
 
     @Test
-    fun `viewing after a covered interval starts at the new time`() {
-        val covered = ContentSession(content, 1_000)
-        assertEquals(1_000L, covered.cover(2_000)!!.durationMillis)
+    fun `a new visit starts at its own time`() {
+        val first = ContentSession(content, 1_000)
+        assertEquals(1_000L, first.finish(2_000)!!.durationMillis)
 
-        val resumed = ContentSession(content, 20_000)
-        assertEquals(20_000L, resumed.startedAtMillis)
-        assertEquals(5_000L, resumed.finish(25_000)!!.durationMillis)
+        val second = ContentSession(content, 20_000)
+        assertEquals(20_000L, second.startedAtMillis)
+        assertEquals(5_000L, second.finish(25_000)!!.durationMillis)
     }
 
     @Test
@@ -61,12 +55,12 @@ class ContentSessionTest {
     }
 
     @Test
-    fun `layout updates keep the original viewing start`() {
+    fun `screen updates keep the original viewing start`() {
         val session = ContentSession(content, 1_000)
-        session.content = content.copy(cover = cover.copy(target = ContentCoverTarget.Screen(ContentBounds(0, 0, 2160, 1000))))
+        session.content = content.copy(blockingSuppressed = true)
 
-        assertFalse(session.isCovered)
-        assertEquals(1_000L, session.cover(2_000)!!.durationMillis)
+        assertEquals(1_000L, session.startedAtMillis)
+        assertEquals(4_000L, session.finish(5_000)!!.durationMillis)
     }
 
     @Test

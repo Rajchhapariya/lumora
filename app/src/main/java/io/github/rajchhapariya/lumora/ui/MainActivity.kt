@@ -44,7 +44,6 @@ import io.github.rajchhapariya.lumora.util.BackupManager
 import kotlinx.coroutines.launch
 import io.github.rajchhapariya.lumora.core.model.ThemeMode
 import io.github.rajchhapariya.lumora.core.repository.UserSettingsStore
-import io.github.rajchhapariya.lumora.debug.DebugOverlayConfig
 import io.github.rajchhapariya.lumora.designsystem.theme.LocalSharedTransitionScope
 import io.github.rajchhapariya.lumora.designsystem.theme.LumoraTheme
 import io.github.rajchhapariya.lumora.feature.home.HomeScreen
@@ -104,7 +103,6 @@ class MainActivity : ComponentActivity() {
         setContent {
 
             val appState: LumoraAppState = rememberLumoraAppState()
-            val forceLegacyOverlay by DebugOverlayConfig.forceLegacyOverlay.collectAsStateWithLifecycle()
             val themeMode by userSettingsStore.getThemeMode().collectAsStateWithLifecycle(ThemeMode.SYSTEM)
             val dynamicColorEnabled by userSettingsStore.getDynamicColorEnabled().collectAsStateWithLifecycle(false)
 
@@ -123,10 +121,6 @@ class MainActivity : ComponentActivity() {
                                         onNavigateToSettings = appState::navigateToSettings,
                                         accessibilityServiceClass = LumoraBlockAccessibilityService::class.java,
                                         onRequestAppReview = ::requestAppReview,
-                                        forceLegacyOverlay = forceLegacyOverlay,
-                                        onForceLegacyOverlayChanged = {
-                                            DebugOverlayConfig.forceLegacyOverlay.value = it
-                                        },
                                     )
                                 }
                                 entry<LumoraRoute.Settings> {

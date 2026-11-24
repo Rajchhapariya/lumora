@@ -25,7 +25,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
-import io.github.rajchhapariya.lumora.BuildConfig
 import io.github.rajchhapariya.lumora.core.blocking.BlockingManager
 import io.github.rajchhapariya.lumora.core.model.BlockOption
 import io.github.rajchhapariya.lumora.core.model.BlockableApp
@@ -37,8 +36,6 @@ import io.github.rajchhapariya.lumora.core.repository.BlockingConfigRepository
 import io.github.rajchhapariya.lumora.core.repository.SessionTracker
 import io.github.rajchhapariya.lumora.core.prefs.ExtrasPrefs
 import io.github.rajchhapariya.lumora.core.repository.UserSettingsStore
-import io.github.rajchhapariya.lumora.debug.DebugOverlayConfig
-import io.github.rajchhapariya.lumora.ui.overlay.BlockedContentOverlayManager
 import io.github.rajchhapariya.lumora.ui.overlay.TimerOverlayManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -49,7 +46,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -66,10 +62,7 @@ import timber.log.Timber
  * - [BlockOption.IntervalTimer]: Allows usage within scheduled intervals.
  * - [BlockOption.NothingSelected]: No blocking is performed.
  *
- * Depending on the app, blocking is enforced either by:
- * - Performing automatic Back navigation to exit full-screen content, or
- * - Displaying a cover overlay over the video player while keeping
- *   the rest of the app (like Inbox and Profile) usable.
+ * Blocking is enforced by performing an automatic Back navigation to leave the video screen.
  *
  * The service tracks active viewing time, displays an optional timer overlay, and saves completed
  * sessions to the user's usage history.
@@ -81,7 +74,6 @@ import timber.log.Timber
  * @see BlockOption for available blocking strategies
  * @see BlockableApp for supported apps
  * @see ContentScanner for screen and window scanning
- * @see BlockedContentOverlayManager for overlay presentation
  */
 @SuppressLint("AccessibilityPolicy") // Accessibility APIs are required to enforce user-configured blocking policies.
 @AndroidEntryPoint
@@ -90,18 +82,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         timerOverlayManager.attachServiceContext(this)
-        blockedContentOverlayManager.attachServiceContext(this)
-
-        if (BuildConfig.DEBUG) {
-            serviceScope.launch {
-                DebugOverlayConfig.forceLegacyOverlay.drop(1).collect {
-                    if (contentSession?.content?.cover != null) {
-                        onBlockedContentExited()
-                    }
-                    blockedContentOverlayManager.hide()
-                }
-            }
-        }
     }
 
     /** Main thread handler for running UI-related actions like overlays and navigation. */
@@ -130,10 +110,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     @Inject
     lateinit var timerOverlayManager: TimerOverlayManager
 
-    /** Manages the blocker overlay placed directly over distracting video players. */
-    @Inject
-    lateinit var blockedContentOverlayManager: BlockedContentOverlayManager
-
     private val powerManager by lazy { getSystemService(POWER_SERVICE) as PowerManager }
 
     /** Every package Lumora can block in, used to ignore content updates from unrelated apps. */
@@ -142,29 +118,22 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     /** Local-only extras: blocking schedule, "stopped today" counter and setup flag. */
     private val extrasPrefs by lazy { ExtrasPrefs(this) }
 
-    /** Currently active content session, including viewing state and any attached cover. */
+    /** Currently active content session. */
     private var contentSession: ContentSession? = null
 
-    /** Scans the window tree to find target apps, videos, and compute cover coordinates. */
+    /** Scans the window tree to find the supported apps and the blocked screens inside them. */
     private val contentScanner by lazy {
         ContentScanner(
             service = this,
-            windowAttachedCover = { isWindowAttachedCoverAllowed },
             allowVideosSentByDm = { currentAllowVideosSentByDm },
             includeStories = { currentIncludeStories },
             currentActivity = { currentActivity },
         )
     }
 
-    /**
-     * Whether covers should attach directly to app windows (Android 14+), or use screen overlays (debug fallback).
-     */
-    private val isWindowAttachedCoverAllowed: Boolean
-        get() = !(BuildConfig.DEBUG && DebugOverlayConfig.forceLegacyOverlay.value)
-
-    /** Active viewing session where usage time is currently running (not yet covered). */
+    /** Active viewing session where usage time is currently running. */
     private val viewingSession: ContentSession?
-        get() = contentSession?.takeUnless { it.isCovered }
+        get() = contentSession
 
     /** Latest blocking mode chosen by the user, read without touching the database. */
     @Volatile
@@ -329,15 +298,13 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
      * @param reason Diagnostic message for logs explaining why the session ended.
      */
     private fun handleTrackedAppExit(reason: String) {
-        // A window cover can outlive tracking while its parent animates away. Screen-off clears it.
-        if (!powerManager.isInteractive) blockedContentOverlayManager.hide()
         if (contentSession == null && currentForegroundBrainRotApp == null) {
             return
         }
 
         Timber.i("Handling tracked app exit: %s", reason)
         if (contentSession != null) {
-            onBlockedContentExited(appLeft = true)
+            onBlockedContentExited()
         }
 
         if (currentForegroundBrainRotApp != null) {
@@ -400,9 +367,7 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
             event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED,
             contentSession?.app,
             currentForegroundBrainRotApp,
-            contentSession?.takeIf { it.isCovered }?.content?.cover,
         )
-        if (scan.trackedAppExited) handleTrackedAppExit("covered app lost foreground")
         val userActiveApp = scan.foregroundApp
         updateForegroundAppState(userActiveApp)
         if (userActiveApp == null && contentSession == null) return
@@ -419,10 +384,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
             if (contentSession != null) {
                 Timber.v("Brain rot content no longer detected, triggering exit")
                 onBlockedContentExited()
-            }
-            // Returning directly to an allowed screen must also clear a retained window cover.
-            if (userActiveApp?.coverDetector != null) {
-                blockedContentOverlayManager.hide()
             }
         }
     }
@@ -461,7 +422,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
             contentSession != null, viewingSession?.app,
         )
         stopPeriodicCheck()
-        mainHandler.removeCallbacks(coveredContentCheck)
         // Save a viewing session that is still open. serviceScope is cancelled below, and a save
         // launched on it would be lost, so use a short-lived scope of its own.
         val finished = contentSession?.finish(System.currentTimeMillis())
@@ -471,7 +431,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
         if (finished != null) {
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { saveViewing(finished) }
         }
-        blockedContentOverlayManager.hide()
         timerOverlayManager.cleanup()
         serviceScope.cancel()
     }
@@ -480,19 +439,14 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     private fun onBlockedContentDetected(detectedContent: DetectedBlockedContent) {
         val activeSession = contentSession
         if (activeSession != null) {
-            // A cover and a Back action need separate sessions, even inside the same app.
+            // Moving to another app ends the old session; screen updates inside the same app keep it.
             if (!activeSession.content.canContinueWith(detectedContent)) {
                 onBlockedContentExited()
             } else {
                 val suppressionChanged = activeSession.blockingSuppressed != detectedContent.blockingSuppressed
                 activeSession.content = detectedContent
-                if (activeSession.isCovered && detectedContent.cover?.let { blockedContentOverlayManager.show(it) } != true) {
-                    // The failed update removed the cover. Start a new viewing period below.
-                    onBlockedContentExited()
-                } else {
-                    if (suppressionChanged) reconsiderVisibleContent()
-                    return
-                }
+                if (suppressionChanged) reconsiderVisibleContent()
+                return
             }
         }
 
@@ -526,11 +480,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
                 Timber.i("Blocking on enter")
                 enforceBlocking(session)
                 return@launch
-            }
-
-            // Viewing is allowed now, so remove any cover kept from an earlier visit.
-            if (session.app.coverDetector != null) {
-                blockedContentOverlayManager.hide()
             }
 
             if (currentTimerOverlayEnabled) {
@@ -586,27 +535,15 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
 
     /**
      * Called when the user leaves blocked content.
-     * Stops usage checks, hides overlays, and records the completed viewing session.
-     *
-     * @param appLeft True if the user switched away from the host app entirely.
+     * Stops usage checks, hides the timer, and records the completed viewing session.
      */
-    private fun onBlockedContentExited(appLeft: Boolean = false) {
+    private fun onBlockedContentExited() {
         val session = contentSession
         contentSession = null
-        val hadCover = session?.content?.cover != null
         val finished = session?.finish(System.currentTimeMillis())
         stopPeriodicCheck()
-        mainHandler.removeCallbacks(coveredContentCheck)
-        // Keep an attached cover during app switching, but remove it when changing screens in the app.
-        if (hadCover) {
-            if (appLeft) {
-                blockedContentOverlayManager.onAppExit(powerManager.isInteractive)
-            } else {
-                blockedContentOverlayManager.hide()
-            }
-        }
         refreshServiceConfig()
-        if (finished == null) return // A covered player already finished its viewing session.
+        if (finished == null) return // This visit was already saved.
         timerOverlayManager.hide(finished.startedAtMillis, finished.endedAtMillis)
         serviceScope.launch { saveViewing(finished) }
     }
@@ -635,7 +572,7 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
         Timber.d("Stopped periodic usage checks")
     }
 
-    /** Enforces the active blocking policy by attaching a cover overlay or performing Back navigation. */
+    /** Enforces the active blocking policy by performing the app's Back navigation. */
     private suspend fun enforceBlocking(session: ContentSession) {
         if (viewingSession !== session || isBlockingSuppressed) return
         when (val action = session.content.blockAction) {
@@ -643,42 +580,6 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
                 extrasPrefs.recordAttempt()
                 performGlobalAction(action.action)
             }
-
-            ContentBlockAction.CoverVideoRegion -> {
-                // The user may have switched apps while we were waiting for the blocking decision.
-                if (!contentScanner.isAppVisible(session.app)) {
-                    handleTrackedAppExit("app lost foreground before covering")
-                    return
-                }
-                val cover = session.content.cover ?: return
-                // Returning from Recents can replace the app's drawing surface without resizing it.
-                // Reattach now; normal screen updates can keep using that attachment.
-                if (!blockedContentOverlayManager.show(cover, refreshAttachment = true)) {
-                    startPeriodicCheck()
-                    return
-                }
-                // Stop counting only after the cover was shown successfully.
-                val finished = session.cover(System.currentTimeMillis()) ?: return
-                extrasPrefs.recordAttempt()
-                stopPeriodicCheck()
-                timerOverlayManager.dismissImmediately()
-                refreshServiceConfig()
-                saveViewing(finished)
-                scheduleCoveredContentCheck()
-            }
-        }
-    }
-
-    /** Periodically checks whether a covered video is still on screen or if new allowance is available. */
-    private val coveredContentCheck = Runnable {
-        refreshDetectedContent()
-        reconsiderVisibleContent()
-    }
-
-    private fun scheduleCoveredContentCheck() {
-        mainHandler.removeCallbacks(coveredContentCheck)
-        if (contentSession?.isCovered == true) {
-            mainHandler.postDelayed(coveredContentCheck, 1000)
         }
     }
 
@@ -694,8 +595,7 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
             scan.content?.let(::onBlockedContentDetected)
             return
         }
-        val activeCover = session?.takeIf { it.isCovered }?.content?.cover
-        val content = contentScanner.findVisibleBlockedContent(app, activeCover)
+        val content = contentScanner.findVisibleBlockedContent(app)
         if (content != null) {
             onBlockedContentDetected(content)
         } else if (session != null) {
@@ -706,29 +606,11 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     /** Checks if the user's latest settings or allowances should block or unblock the current screen. */
     private fun reconsiderVisibleContent() {
         val current = contentSession ?: return
-        if (current.app.coverDetector != null && !contentScanner.isAppVisible(current.app)) {
-            handleTrackedAppExit("app lost foreground before reconsidering content")
-            return
-        }
         serviceScope.launch {
-            if (!current.isCovered) {
-                if (!isBlockingSuppressed &&
-                    blockingManager.onPeriodicCheck(System.currentTimeMillis() - current.startedAtMillis) == BlockingResult.BlockNow
-                ) {
-                    enforceBlocking(current)
-                }
-            } else {
-                // Query blocking policy without starting a viewing session or recording usage prematurely.
-                val shouldBlock = blockingManager.shouldBlockContent()
-                if (contentSession !== current || (shouldBlock && !isBlockingSuppressed)) {
-                    scheduleCoveredContentCheck()
-                    return@launch
-                }
-                // Transition the covered session into an active viewing session and start counting usage from now.
-                val viewing = ContentSession(current.content, System.currentTimeMillis())
-                contentSession = viewing
-                mainHandler.removeCallbacks(coveredContentCheck)
-                onBlockedContentEntered()
+            if (!isBlockingSuppressed &&
+                blockingManager.onPeriodicCheck(System.currentTimeMillis() - current.startedAtMillis) == BlockingResult.BlockNow
+            ) {
+                enforceBlocking(current)
             }
         }
     }
@@ -741,8 +623,7 @@ class LumoraBlockAccessibilityService : AccessibilityService() {
     private fun updateServiceConfig(listenToAll: Boolean) {
         val info = serviceInfo ?: return
 
-        // Do not delay Home/app-switching events while covered, or the old screen cover can linger.
-        info.notificationTimeout = if (contentSession?.isCovered == true) 0L else DEFAULT_NOTIFICATION_TIMEOUT_MS
+        info.notificationTimeout = DEFAULT_NOTIFICATION_TIMEOUT_MS
 
         if (listenToAll) {
             info.packageNames = null // Listen to all

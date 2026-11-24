@@ -68,8 +68,6 @@ fun HomeScreen(
     onRequestAppReview: (Activity, (ReviewPromptResult) -> Unit) -> Unit = { _, onResult ->
         onResult(ReviewPromptResult.SkippedPermanent)
     },
-    forceLegacyOverlay: Boolean = false,
-    onForceLegacyOverlayChanged: (Boolean) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -224,8 +222,6 @@ fun HomeScreen(
             onUsageAnalyticsDateSelected = viewModel::onUsageAnalyticsDateSelected,
             onUsageAnalyticsTodaySelected = viewModel::onUsageAnalyticsTodaySelected,
             onAveragePeriodSelected = viewModel::onAveragePeriodSelected,
-            forceLegacyOverlay = forceLegacyOverlay,
-            onForceLegacyOverlayChanged = onForceLegacyOverlayChanged,
         )
     }
 

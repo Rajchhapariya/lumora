@@ -32,7 +32,7 @@ import org.robolectric.annotation.Config
 class SnapchatStoriesTest {
     private var includeStories = false
     private val service = Robolectric.buildService(TestAccessibilityService::class.java).create().get()
-    private val scanner = ContentScanner(service, { false }, { false }, { includeStories })
+    private val scanner = ContentScanner(service, { false }, { includeStories })
     private val snapchat = ResolvedBlockableApp(BlockableApp.SNAPCHAT, "com.snapchat.android")
 
     @Test
