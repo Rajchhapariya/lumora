@@ -62,14 +62,56 @@ screen names that identify its short-video feed.
 
 ## Using it
 
-1. Download the latest `.apk` from the **Releases** page and open it. Allow installs from your
-   browser or file manager if Android asks.
+1. Download the latest `Lumora-<version>.apk` from the **Releases** page and open it. Allow
+   installs from your browser or file manager if Android asks. If Google Play Protect blocks the
+   install, see [If Play Protect blocks the install](#if-play-protect-blocks-the-install) below.
 2. Open Lumora and follow the prompt to turn on its **Accessibility** service. On Android 13 and
    newer you may first need **App info > menu > Allow restricted settings**.
 3. Allow **notifications**, so the "blocking is off" alert can reach you.
 4. Pick a mode on the home screen. That is all.
 
 Requires Android 8.0 or newer. It has been tested on Android 14 (ColorOS 14) only.
+
+### If Play Protect blocks the install
+
+Some phones show **"App blocked to protect your device"** (Google Play Protect), or the installer
+says **"App not installed"**. This is not a fault in the file. Lumora uses an Accessibility service,
+and Google's Play Protect can block a sideloaded app that asks for that permission, most often when
+the file was opened from a messaging app such as Telegram or WhatsApp. Whether you see it depends on
+your phone, your country and your Play Protect version. Lumora is not on the Play Store, so Google
+has not reviewed it.
+
+Pick one of these:
+
+1. **Download it again from the Releases page in your browser and install from there.** Do not
+   install a copy someone forwarded to you in a chat. This sometimes works and costs nothing.
+2. **Install from a computer with adb.** An install started from a computer was not blocked in
+   testing on one phone (a Realme running ColorOS 14). Turn on **Developer options** and **USB
+   debugging**, connect the phone, and run:
+
+   ```
+   adb install Lumora-<version>.apk
+   ```
+
+3. **Switch off the Play Protect scan for a few minutes.** Open the **Play Store**, tap your profile
+   picture, then **Play Protect**, then the gear icon, and turn off **Scan apps with Play Protect**.
+   Install Lumora, then turn the scan back on. While it is off, your phone does not check any app,
+   so do this only with a file you have verified (next section).
+
+Any one of these is enough. After a reinstall you need to turn the Accessibility service on again,
+and, if you use On-demand mode, grant its two permissions again (see below).
+
+### Check the download
+
+Each release has a `.sha256` file next to the APK. To check that your copy is the real one, run
+this on a computer and compare the result with the text inside the `.sha256` file:
+
+```
+certutil -hashfile Lumora-<version>.apk SHA256
+```
+
+On macOS or Linux use `sha256sum Lumora-<version>.apk` instead. The two values must be identical.
+Only install an APK you downloaded from this repository's Releases page.
 
 ### Keeping it running on Realme, OPPO, Xiaomi, Samsung and similar phones
 
@@ -88,8 +130,8 @@ service, so switch Lumora off while you use them if they complain, or use On-dem
 
 ### On-demand mode (optional)
 
-Payment apps refuse to run when any accessibility service that came from outside the Play Store is
-switched on. On-demand mode avoids this: Lumora's service is on only while a supported app is in
+Some payment apps warn about, or refuse to run with, an accessibility service that did not come
+from the Play Store. On-demand mode avoids this: Lumora's service is on only while a supported app is in
 front, and off the rest of the time. It switches on within about a second of opening the app, and
 off about a second after you leave it.
 
