@@ -17,7 +17,7 @@ The original copyright notices are kept in the headers of the source files, as t
 requires. Changes made in Lumora include: a new name, logo and visual design; the
 accessibility-off alert and keep-alive service; blocking schedule; strict pause; stopped-today
 counter; settings backup and restore; the optional On-demand mode that switches the accessibility
-service on and off with the app in front; removal of TikTok support; removal of all network access.
+service on and off with the app in front; a smaller list of supported apps; removal of all network access.
 
 THIRD-PARTY COMPONENTS
 ----------------------
